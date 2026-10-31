@@ -1,0 +1,46 @@
+name: Build Haituo Tools for macOS ARM64
+
+on:
+  push:
+    paths:
+      - 'haituo-source-only.zip'
+      - '.github/workflows/build-macos.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-14-xlarge
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify source archive
+        run: |
+          test -f haituo-source-only.zip
+          unzip -t haituo-source-only.zip
+      - name: Extract migration project
+        run: |
+          mkdir -p work
+          unzip -q haituo-source-only.zip -d work
+          ROOT="$(find work -maxdepth 3 -name build_macos.sh -print -quit | xargs dirname)"
+          test -n "$ROOT"
+          echo "PROJECT_ROOT=$ROOT" >> "$GITHUB_ENV"
+      - name: Build native apps and DMG
+        run: |
+          cd "$PROJECT_ROOT"
+          chmod +x build_macos.sh mac_preflight.py
+          ./mac_preflight.py
+          ./build_macos.sh
+      - name: Upload .app bundles and DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Haituo-Tools-macOS-AppleSilicon
+          path: |
+            ${{ env.PROJECT_ROOT }}/release/*.app
+            ${{ env.PROJECT_ROOT }}/release/*.dmg
+            ${{ env.PROJECT_ROOT }}/release/迁移说明.txt
+          if-no-files-found: error
+          retention-days: 30
